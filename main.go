@@ -150,7 +150,7 @@ func main() {
       if err != nil {
         panic(err)
       }
-      slot, err := yubikey.GenerateRSAWithPolicies(ykpiv.Authentication, 2048, ykpiv.PinPolicyAlways, ykpiv.TouchPolicyNever)
+      slot, err := yubikey.KeyManagement()
       if err != nil {
         panic(err)
       }
