@@ -1,14 +1,12 @@
 package main
 
 import (
+    "fmt"
     "crypto/rand"
     "crypto/rsa"
-    "encoding/hex"
     "crypto/x509"
     "crypto/x509/pkix"
     "encoding/asn1"
-    "encoding/pem"
-    "io/ioutil"
     "math/big"
     "time"
 )
@@ -69,64 +67,11 @@ func CreatePrivateKeyAndCertificate(seed []byte) (*rsa.PrivateKey, *x509.Certifi
   return privateKey, cert, nil
 }
 
-func loadPrivateKey(pemFile string) (*rsa.PrivateKey, error) {
-    // Read the PEM file
-    data, err := ioutil.ReadFile(pemFile)
-    if err != nil {
-        return nil, err
-    }
-
-    // Decode the PEM block
-    block, _ := pem.Decode(data)
-    if block == nil {
-        return nil, err
-    }
-
-    // Parse the private key
-    privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-    if err != nil {
-        return nil, err
-    }
-
-    return privateKey, nil
-}
-
-func decrypt() {
-  // Load Private Key
-  priv, err := loadPrivateKey("key-001.pem")
-  if err != nil {
-    panic(err)
-  }
-
-  // Load certificate
-  certFile, err := ioutil.ReadFile("cert-001.pem")
-  if err != nil {
-    panic(err)
-  }
-
-  block, _ := pem.Decode(certFile)
-  if block == nil || block.Type != "CERTIFICATE" {
-    panic("failed to decode PEM block containing certificate")
-  }
-
-  cert, err := x509.ParseCertificate(block.Bytes)
-  if err != nil {
-    panic(err)
-  }
-
-  // Get custom extension
+func GetEncryptedSeedFromCertificate(cert *x509.Certificate) ([]byte, error) {
   for _, ext := range cert.Extensions {
-    if ext.Id.String() == "2.25.9999.1" {
-      // Decrypt with Private Key
-      dec, err := rsa.DecryptPKCS1v15(rand.Reader, priv, ext.Value)
-      if err != nil {
-        panic(err)
-      }
-
-      // Convert byte array to hex string
-      hexString := hex.EncodeToString(dec)
-      println(hexString)
+    if ext.Id.String() == "1.3.6.1.4.1.41482.999" {
+      return ext.Value, nil
     }
   }
+  return nil, fmt.Errorf("Seed not found.")
 }
-

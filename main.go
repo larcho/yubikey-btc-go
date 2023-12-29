@@ -3,6 +3,7 @@ package main
 import (
   "fmt"
   "flag"
+  "crypto/rand"
   "pault.ag/go/ykpiv"
   "github.com/manifoldco/promptui"
   "encoding/hex"
@@ -68,7 +69,7 @@ func PromptPin() (string, error) {
 }
 
 func main() {
-  _ = flag.Bool("testnet", false, "Enable testnet mode.")
+  testnet := flag.Bool("testnet", false, "Enable testnet mode.")
   createnew := flag.Bool("createnew", false, "Create a new wallet.")
   flag.Parse()
 
@@ -125,26 +126,47 @@ func main() {
       if err != nil {
         panic(err)
       }
-      managementKey, err := PromptManagementKey()
+      pin, err := PromptPin()
       if err != nil {
         panic(err)
       }
 
       yubikey, err := ykpiv.New(ykpiv.Options{
         Reader: ykReader,
-        ManagementKey: managementKey,
+        PIN: &pin,
       })
       defer yubikey.Close()
 
-      err = yubikey.Authenticate()
+      err = yubikey.Login()
       if err != nil {
         panic(err)
       }
 
-      certificate, err := yubikey.GetCertificate(ykpiv.KeyManagement)
+      cert, err := yubikey.GetCertificate(ykpiv.KeyManagement)
       if err != nil {
         panic(err)
       }
-      println("Certificate:", certificate.Issuer.Organization)
+      encodedSeed, err := GetEncryptedSeedFromCertificate(cert)
+      if err != nil {
+        panic(err)
+      }
+      slot, err := yubikey.GenerateRSAWithPolicies(ykpiv.Authentication, 2048, ykpiv.PinPolicyAlways, ykpiv.TouchPolicyNever)
+      if err != nil {
+        panic(err)
+      }
+      seed, err := slot.Decrypt(rand.Reader, encodedSeed, nil)
+      if err != nil {
+        panic(err)
+      }
+
+      masterKey, err := CreateNewMasterKey(seed, *testnet)
+      if err != nil {
+        panic(err)
+      }
+      address, _, err := GetAddressFromMasterKey(masterKey, 0, *testnet)
+      if err != nil {
+        panic(err)
+      }
+      println("Address:", address)
   }
 }
