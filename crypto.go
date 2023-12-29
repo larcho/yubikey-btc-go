@@ -10,82 +10,63 @@ import (
     "encoding/pem"
     "io/ioutil"
     "math/big"
-    "os"
     "time"
 )
 
-func cert_test() {
+func CreatePrivateKeyAndCertificate(seed []byte) (*rsa.PrivateKey, *x509.Certificate, error) {
   // Generate RSA Private Key
-  priv, err := rsa.GenerateKey(rand.Reader, 2048)
+  privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
   if err != nil {
-    panic(err)
+    return nil, nil, err
+  }
+  
+  // Encode seed
+  publicKey := privateKey.PublicKey
+  encodedSeed, err := rsa.EncryptPKCS1v15(rand.Reader, &publicKey, seed)
+  if err != nil {
+    return nil, nil, err
   }
 
-  // Convert hex string to byte array
-  payloadString := "d341750f389f668a6d14b11b89e307d207b7c2d3d1326e5ba4a92bd1a83903874d42f95f7b66e8c294509136c78e5d2dd0790d47febea25ab2c9190592973f2f"
-  payload, err := hex.DecodeString(payloadString)
-  if err != nil {
-    panic(err)
-  }
-
-  // Encrypt hex string with RSA Public Key
-  pub := priv.PublicKey
-  enc, err := rsa.EncryptPKCS1v15(rand.Reader, &pub, payload)
-  if err != nil {
-    panic(err)
-  }
-
-  // Create Certificate base
+  //Create Certificate
   notBefore := time.Now()
-  notAfter := notBefore.Add(365 * 24 * time.Hour)
+  notAfter := notBefore.Add(25 * 365 * 24 * time.Hour)
 
   serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
   if err != nil {
-    panic(err)
+    return nil, nil, err
   }
 
   template := x509.Certificate{
     SerialNumber: serialNumber,
     Subject: pkix.Name{
-      Organization: []string{"Yubikey BTC Wallet"},
+      CommonName: "Yubikey BTC Wallet",
+      Organization: []string{"Larcho"},
     },
     NotBefore: notBefore,
     NotAfter:  notAfter,
+    KeyUsage:  x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
     BasicConstraintsValid: true,
   }
 
   // Define custom extension
   customExt := pkix.Extension{
-    Id: asn1.ObjectIdentifier{2, 25, 9999, 1},
-    Critical: false,
-    Value: enc,
+    Id: asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 41482, 999},
+    Critical: true,
+    Value: encodedSeed,
   }
-
   template.ExtraExtensions = []pkix.Extension{customExt}
 
-
-  // Save Private Key
-  privBytes := x509.MarshalPKCS1PrivateKey(priv)
-  privOut, err := os.Create("key-001.pem")
-  if err != nil {
-    panic(err)
-  }
-  pem.Encode(privOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: privBytes})
-  privOut.Close()
-
   // Create Certificate
-  derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+  derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
   if err != nil {
-    panic(err)
+    return nil, nil, err
+  }
+  cert, err := x509.ParseCertificate(derBytes)
+  if err != nil {
+    return nil, nil, err
   }
 
-  // Save Certificate to file
-  certOut, err := os.Create("cert-001.pem")
-  if err != nil {
-    panic(err)
-  }
-  pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-  certOut.Close()
+  return privateKey, cert, nil
 }
 
 func loadPrivateKey(pemFile string) (*rsa.PrivateKey, error) {
