@@ -20,7 +20,7 @@ func CreateNewSeedAndMnemonic() ([]byte, string, error) {
 	return seed, mnemonic, nil
 }
 
-func CreateNewMasterKey(seed []byte, testnet bool) (*hdkeychain.ExtendedKey, error) {
+func GetMasterKeyFromSeed(seed []byte, testnet bool) (*hdkeychain.ExtendedKey, error) {
 	var params *chaincfg.Params
 	if testnet {
 		params = &chaincfg.TestNet3Params

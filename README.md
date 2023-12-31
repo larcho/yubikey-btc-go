@@ -1,6 +1,6 @@
 # Yubikey BTC Cold Wallet
 
-This wallet aims to store itself completely within a Yubikey leveraging the available PIV feature. It accomplishes this by storing a BIP32 seed encrypted in a certificate at the “Key Management” slot. The app is able to generate a BIP 39 Mnemonic seed, generate replicable RSA2048 pairs during setup so the wallet can be backed up into multiple Yubikeys and generate BIP84 addresses at any given index.
+This wallet aims to store itself completely within a Yubikey leveraging the available PIV feature. It accomplishes this by storing a BIP32 seed encrypted in a DataTag undefined by Yubikey. The app is able to generate a BIP 39 Mnemonic seed, generate replicable RSA2048 pairs during setup so the wallet can be backed up into multiple Yubikeys and generate BIP84 addresses at any given index.
 
 Since this is a cold wallet, doing Bitcoin transactions isn’t currently available. If you want to generate a transfer you do have multiple options:
 

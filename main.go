@@ -2,12 +2,12 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"flag"
 	"fmt"
-	"github.com/manifoldco/promptui"
 	"pault.ag/go/ykpiv"
 )
+
+const ENCODED_SEED_SLOT int32 = 0x005F0343
 
 func GetYubikeyReader() (string, error) {
 	readers, err := ykpiv.Readers()
@@ -23,59 +23,6 @@ func GetYubikeyReader() (string, error) {
 	return readers[0], nil
 }
 
-func PromptManagementKey() ([]byte, error) {
-	const defaultManagementKey = "010203040506070801020304050607080102030405060708"
-
-	prompt := promptui.Prompt{
-		Label: "Yubikey Management Key (Leave blank for default)",
-		Mask:  '*',
-	}
-
-	result, err := prompt.Run()
-	if err != nil {
-		return nil, err
-	}
-	if len(result) <= 0 {
-		return hex.DecodeString(defaultManagementKey)
-	} else {
-		return hex.DecodeString(result)
-	}
-}
-
-func PromptStoringInAnotherKey() (bool, error) {
-	prompt := promptui.Prompt{
-		Label:     "Would you like to store your wallet in another Yubikey? This can not be done later.",
-		IsConfirm: true,
-		Default:   "N",
-	}
-	result, err := prompt.Run()
-	return result == "Y", err
-}
-
-func WaitForNextYubikeyPrompt() error {
-	prompt := promptui.Prompt{
-		Label: "Please insert next Yubikey and hit enter.",
-	}
-	_, err := prompt.Run()
-	return err
-}
-
-func PromptPin() (string, error) {
-	validate := func(input string) error {
-		if len(input) < 6 {
-			return fmt.Errorf("PIN must be at least 6 characters")
-		}
-		return nil
-	}
-	prompt := promptui.Prompt{
-		Label:    "Yubikey PIN",
-		Mask:     '*',
-		Validate: validate,
-	}
-
-	return prompt.Run()
-}
-
 func main() {
 	testnet := flag.Bool("testnet", false, "Enable testnet mode.")
 	createnew := flag.Bool("createnew", false, "Create a new wallet.")
@@ -89,7 +36,7 @@ func main() {
 			panic(err)
 		}
 		// Create new private key and certificate for Yubikey
-		privateKey, certificate, err := CreatePrivateKeyAndCertificate(seed)
+		privateKey, certificate, encodedSeed, err := CreatePrivateKeyAndEncodeSeed(seed)
 		if err != nil {
 			panic(err)
 		}
@@ -123,12 +70,16 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			// Import private key and certificate to Yubikey
+			// Import private key, certificate and save encoed seed to Yubikey
 			_, err = yubikey.ImportKey(ykpiv.KeyManagement, privateKey)
 			if err != nil {
 				panic(err)
 			}
 			err = yubikey.SaveCertificate(ykpiv.KeyManagement, *certificate)
+			if err != nil {
+				panic(err)
+			}
+			err = yubikey.SaveObject(ENCODED_SEED_SLOT, encodedSeed)
 			if err != nil {
 				panic(err)
 			}
@@ -168,12 +119,8 @@ func main() {
 			panic(err)
 		}
 
-		// Get certificate and seed from Yubikey
-		cert, err := yubikey.GetCertificate(ykpiv.KeyManagement)
-		if err != nil {
-			panic(err)
-		}
-		encodedSeed, err := GetEncryptedSeedFromCertificate(cert)
+		// Get encoded seed from Yubikey
+		encodedSeed, err := yubikey.GetObject((int)(ENCODED_SEED_SLOT))
 		if err != nil {
 			panic(err)
 		}
@@ -189,7 +136,7 @@ func main() {
 		}
 
 		// Get Master Key from seed and print address
-		masterKey, err := CreateNewMasterKey(seed, *testnet)
+		masterKey, err := GetMasterKeyFromSeed(seed, *testnet)
 		if err != nil {
 			panic(err)
 		}
